@@ -51,6 +51,8 @@ Evento:
     - entradas_vendidas
   # unique_indexes:
     # - titulo
+  unique_indexes:
+    - fecha
 
 Asistente:
   required_vars:
