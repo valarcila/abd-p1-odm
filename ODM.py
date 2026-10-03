@@ -110,6 +110,12 @@ class Model:
         # Realizar las comprabociones y gestiones necesarias
         # antes de la asignacion.
 
+        # comprobar que estan los atributos requeridos
+        missing_vars = self._required_vars - set(kwargs.keys())
+
+        if missing_vars: 
+            raise ValueError(f"Faltan atributos requeridod: {missing_vars}")
+
         # Asigna todos los valores en kwargs a las atributos con 
         # nombre las claves en kwargs
         # Utilizamos el atributo data para guardar los variables 

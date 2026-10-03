@@ -1,5 +1,3 @@
-# valeria e Iván
-
 # Práctica 1 · ODM · EnVivo (fase 1)
 
 Punto de partida de la práctica 1 de **Ampliación de Bases de Datos** (u-tad).

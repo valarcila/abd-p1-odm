@@ -51,7 +51,7 @@ Evento:
     - entradas_vendidas
   # unique_indexes:
     # - titulo
-  unique_indexes:
+  regular_indexes:
     - fecha
 
 Asistente:
@@ -66,3 +66,4 @@ Asistente:
   unique_indexes:
     - correo
   location_index: direccion
+  
