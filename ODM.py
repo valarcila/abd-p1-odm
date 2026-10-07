@@ -160,6 +160,21 @@ class Model:
         modelo.
         """
         #TODO
+        if "unique_indexes" in self._data:
+
+            if not self._mofified_vars:
+                return
+
+            cambios= {
+                id: self._data[id]
+                for id in self._mofified_vars
+            }
+            
+            self._db.update_one(
+                {"unique_indexes": self._data["unique_indexes"]}, {"$set": cambios}
+            )
+
+        
         pass #No olvidar eliminar esta linea una vez implementado
 
     def delete(self) -> None:
