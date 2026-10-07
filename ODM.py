@@ -106,22 +106,38 @@ class Model:
                 diccionario con los valores de las atributos del modelo
         """
         self._data: dict[str, str | dict | list] = {}
+
         #TODO
         # Realizar las comprabociones y gestiones necesarias
         # antes de la asignacion.
 
+        # guardar atributos recibidos
+        received_vars = set(kwargs.keys())
+
         # comprobar que estan los atributos requeridos
-        missing_vars = self._required_vars - set(kwargs.keys())
+        missing_vars = self._required_vars - received_vars
 
         if missing_vars: 
-            raise ValueError(f"Faltan atributos requeridod: {missing_vars}")
+            raise ValueError(f"Faltan atributos requeridos: {missing_vars}")
 
+
+        # comprobar si se recibe atributos no permitidos
+        allowed_vars = self._required_vars | self._admissible_vars | {"_id"}
+
+        # atributos recibidos no pertenecientes a los permitidos
+        invalid_vars = received_vars - allowed_vars
+
+        # lanza error con atributos no validos
+        if invalid_vars: 
+            raise ValueError(f"Atributos no admitidos: {invalid_vars}")
+        
         # Asigna todos los valores en kwargs a las atributos con 
         # nombre las claves en kwargs
         # Utilizamos el atributo data para guardar los variables 
         # almacenadas en la base de datos en una solo atributo
         # Encapsular los datos en una sola variable facilita la 
         # gestion en metodos como save.
+
         self._data.update(kwargs)
 
     def __setattr__(self, name: str, value: str | dict) -> None:
@@ -135,6 +151,21 @@ class Model:
         #TODO
         # Realizar las comprabociones y gestiones necesarias
         # antes de la asignacion.
+        allowed_vars = self._required_vars | self._admissible_vars
+
+        #Si no esta permitido el atributo no permite asignarlo
+        if name not in allowed_vars:
+            raise AttributeError(
+                f"Atributo no admitido: {name}"
+            )
+
+        #si no existe el conjuto de atributos modificados lo inicialiciamos vacio
+        if "_modified_vars" not in self.__dict__:
+            super().__setattr__("_modified_vars", set())
+
+        # los atributos cambiados de valores los registramos como modificado
+        if self._data.get(name) != value:
+            self._modified_vars.add(name)
 
         # Asigna el valor value a la variable name
         self._data[name] = value
@@ -159,31 +190,63 @@ class Model:
         actualiza el documento existente con los nuevos valores del
         modelo.
         """
-        #TODO
-        if "unique_indexes" in self._data:
 
-            if not self._mofified_vars:
-                return
+        # comprobar si el modelo necesita geolocalizacion
+        if (self._location_var is not None and self._location_var in self._data):
+            location_field = self._location_var + "_loc"
 
-            cambios= {
-                id: self._data[id]
-                for id in self._mofified_vars
-            }
-            
+            # Si el documento es nuevo o se ha modifcado la direccion calculamos de nuevo las coordenadas
+            if("_id" not in self._data or self._location_var in self._modified_vars):
+                self._data[location_field] = getLocationPoint(
+                    self._data[self._location_var]
+                )
+
+        # si tiene id el doc exite fuera de mongoDB
+        if ("_id" in self._data):
+
+            # no atributos modificados, no hace falta actualizar
+            if not self._modified_vars:
+
+                # guardamos solo los atributos modificados
+                modified_data = {
+                    var: self._data[var]
+                    for var in self._modified_vars
+                }
+
+            # si se cambia la direccion añadimos tambien las nuevas cordenadas
+            if( self._location_var is not None and self._location_var in self._modified_vars):
+                location_field = self._location_var + "_loc"
+                modified_data[location_field] = self._data[location_field]
+
             self._db.update_one(
-                {"unique_indexes": self._data["unique_indexes"]}, {"$set": cambios}
+                {"_id": self._data["_id"]},
+                {"$set": modified_data}
             )
+        # para los documentos nuevos
+        else:
+            result = self._db.insert_one(self._data)
 
-        
-        pass #No olvidar eliminar esta linea una vez implementado
+            # guardamos los id generados por mongoDB
+            self._data["_id"] = result.inserted_id
+
+
+        self._modified_vars.clear()
 
     def delete(self) -> None:
         """
         Elimina el modelo de la base de datos
         """
         #TODO
-        pass
-    
+
+        #Al no tenr id todavia no es esta guardado
+        if "_id" not in self._data:
+            return
+
+        # eliminamos de mongoDB el documento cuyo id coincide con el del objeto acutal
+        self._db.delete_one(
+            {"_id": self._data["_id"]}
+        )
+
     @classmethod
     def find(cls, filter: dict[str, str | dict]) -> Any:
         """ 
@@ -202,7 +265,12 @@ class Model:
         """ 
         #TODO
         # cls es el puntero a la clase
-        pass #No olvidar eliminar esta linea una vez implementado
+
+        # realizamos la consulta en mongoDB usando exactamente el filtro recibido
+        cursor = cls._db.find(filter)
+
+        # devolvemos un ModelCursos para que los documentos se conviertan despues en objetos del modelo
+        return ModelCursor(cls, cursor)
 
     @classmethod
     def aggregate(cls, pipeline: list[dict]) -> pymongo.command_cursor.CommandCursor:
@@ -265,12 +333,35 @@ class Model:
         cls._required_vars = required_vars
         cls._admissible_vars = admissible_vars
         # TODO
+    
         # Recorrer indexes y crear cada índice segun su tipo: 'unique', 'asc'
         # y 'geosphere'. Comparar el tipo por igualdad, no con el operador 'in'.
         # Ojo con el índice geoespacial: save() guarda el GeoJSON Point en
         # <campo>_loc, luego el índice 2dsphere va sobre <campo>_loc, mientras
         # que _location_var debe guardar el nombre del campo base.
 
+        for field, index_type in indexes.items():
+
+            # indice unico
+            if index_type == "unique":
+                cls._db.create_index([(field, pymongo.ASCENDING)], unique=True)
+
+            #indice ascente normal
+            elif index_type == "asc":
+                cls._db.create_index([field, pymongo.ASCENDING])
+
+            #indice geospacial
+            elif index_type == "geophere":
+
+                #guardamos el campo base
+                cls._location_var = field
+
+                # el punto GeoJSON se almacena en "address_loc"
+                location_field = field + "_loc"
+
+                # creamos el indice 2dsphere sobre el campo GeoJSON
+                cls._db.create_index([location_field, pymongo.GEOSPHERE])
+            
 
 class ModelCursor:
     """ 
@@ -315,7 +406,21 @@ class ModelCursor:
         Utilizar alive para comprobar si existen mas documentos.
         """
         #TODO
-        pass #No olvidar eliminar esta linea una vez implementado
+
+        while self.cursor.alive:
+            try:
+                # obtenemos el siguiente documento del cursor
+                document = next(self.cursor)
+
+                # convertir el documento en un objeto de la clase del modelo correspondiente
+                model_object = self.model(**document)
+
+                # devolvemos el objeto modelo utilizando yield
+                yield model_object
+
+            except StopIteration:
+                # si no quedan documentos cortamos el iterador
+                break
 
 
 def initApp(definitions_path: str = "./models.yml", mongodb_uri="mongodb://localhost:27017/", db_name="abd", scope=globals()) -> None:
