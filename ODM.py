@@ -499,33 +499,86 @@ def initApp(definitions_path: str = "./models.yml", mongodb_uri="mongodb://local
 if __name__ == '__main__':
     
     # Inicializar base de datos y modelos con initApp
-    #TODO
     initApp()
 
-    #Ejemplo
-    m = MiModelo(nombre="Pablo", apellido="Ramos", edad=18)
-    m.save()
-    m.nombre="Pedro"
-    print(m.nombre)
+    # Ejemplo
+    # m = MiModelo(nombre="Pablo", apellido="Ramos", edad=18)
+    # m.save()
+    # m.nombre="Pedro"
+    # print(m.nombre)
 
     # Hacer pruebas para comprobar que funciona correctamente el modelo
-    #TODO
+
     # Crear modelo
+    recinto = Recinto(
+        nombre = "Movistar Arena",
+        direccion = "Av. de Felipe II, s/n, Salamanca, 28009 Madrid",
+        aforo = 20000,
+        zonas = {
+            "Pista": 7000,
+            "Grada": 13000
+        },
+        servicios = ["parking", "guardarropa"]
+    )
+    recinto.save()
+
+    artista = Artista(
+        nombre = "Guitarricadelafuente",
+        generos_musicales = ["pop", "electropop"],
+        pais = "España",
+        ano_inicio = 2017
+    )
+    artista.save()
+
+    evento = Evento(
+        titulo = "spanish leather tour 2026",
+        artistas_participantes = ["Guitarricadelafuente"],
+        recinto = "Movistar Arena",
+        fecha = "2026-10-02",
+        hora = "21:00",
+        precio_zona = {
+            "Pista": 41,
+            "Grada": 43
+        },
+        entradas_vendidas = 19000
+    )
+    evento.save()
+
+    asistente = Asistente(
+        nombre = "Ana López Pérez",
+        correo = "ana@hotmail.com",
+        fecha_alta = "2024-05-26",
+        direccion = "C. de Lope de Rueda, 16, Salamanca, 28009 Madrid",
+        generos_musicales = ["pop"]
+    )
+    asistente.save()
 
     # Asignar nuevo valor a variable admitida del objeto 
+    recinto.servicios = ["bar"]
 
     # Asignar nuevo valor a variable no admitida del objeto 
+    try:
+        recinto.telefono = "914449949"
+    except AttributeError as e:
+        print(e)
 
     # Guardar
+    recinto.save()
 
     # Asignar nuevo valor a variable admitida del objeto
+    recinto.aforo = 21000
 
     # Guardar
+    recinto.save()
 
     # Buscar nuevo documento con find
+    result = Recinto.find({"nombre": "Movistar Arena"})
 
     # Obtener primer documento
+    recinto_result = next(iter(result))
 
     # Modificar valor de variable admitida
+    recinto_result.aforo = 22000
 
     # Guardar
+    recinto_result.save()

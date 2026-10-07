@@ -1,0 +1,1 @@
+[{"_id":{"$oid":"6ac6981b8051ebe552b44db1"},"nombre":"Movistar Arena","direccion":"Av. de Felipe II, s/n, Salamanca, 28009 Madrid","aforo":22000,"zonas":{"Pista":7000,"Grada":13000},"servicios":["bar"],"direccion_loc":{"type":"Point","coordinates":[-3.674224,40.423986]}}]

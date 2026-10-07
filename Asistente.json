@@ -1,0 +1,1 @@
+[{"_id":{"$oid":"6ac6981d8051ebe552b44db4"},"nombre":"Ana López Pérez","correo":"ana@hotmail.com","fecha_alta":"2024-05-26","direccion":"C. de Lope de Rueda, 16, Salamanca, 28009 Madrid","generos_musicales":["pop"],"direccion_loc":{"type":"Point","coordinates":[-3.677531,40.422396]}}]
