@@ -1,5 +1,5 @@
 __author__ = 'Pablo Ramos Criado'
-__students__ = 'Iván García-Romero Pérex y Valeria Arcila Rodríguez'
+__students__ = 'Iván García-Romero Pérez y Valeria Arcila Rodríguez'
 
 
 from geopy.geocoders import Nominatim
@@ -12,6 +12,7 @@ from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 from bson.objectid import ObjectId
 import yaml
+
 
 def getLocationPoint(address: str) -> Point:
     """ 
@@ -31,23 +32,33 @@ def getLocationPoint(address: str) -> Point:
     location = None
     intentos = 0
     maxIntentos = 5
+
     while location is None and intentos < maxIntentos:
         intentos += 1
+
         try:
             time.sleep(1)
-            #TODO
+  
             # Es necesario proporcionar un user_agent para utilizar la API
             # Utilizar un nombre aleatorio para el user_agent
             location = Nominatim(user_agent="Mi-Nombre-Aleatorio").geocode(address)
+
         except GeocoderTimedOut:
             # Puede lanzar una excepcion si se supera el tiempo de espera
             # Volver a intentarlo
             continue
-    #TODO
+
     # Devolver un GeoJSON de tipo punto con la latitud y longitud almacenadas.
     # Si no se consiguieron coordenadas, lanzar ValueError: la funcion no puede
     # devolver un punto inventado ni None silenciosamente. Es lo que espera la
     # prueba test_get_location_point_timeout_failure.
+
+    # comprobar si se obtuvieron coordenadas
+    if location is None:
+        raise ValueError(f"No se pudieron obtener coordenadas para: {address}")
+
+    # devolver punto geojson en orden longitud, latitud
+    return Point((location.longitude, location.latitude))
 
 
 class Model:
@@ -160,7 +171,7 @@ class Model:
             raise AttributeError(f"Atributo no admitido: {name}")
 
         # si atributo cambia de valor, registrar como modificado
-        if self._data.get(name) != value:
+        if name not in self._data or self._data[name] != value:
             self._modified_vars.add(name)
 
         # Asigna el valor value a la variable name
@@ -432,20 +443,58 @@ def initApp(definitions_path: str = "./models.yml", mongodb_uri="mongodb://local
         db_name : str
             nombre de la base de datos
     """
-    #TODO
+
     # Inicializar base de datos
 
-    #TODO
+    client = MongoClient(mongodb_uri, server_api = ServerApi('1'))
+    db = client[db_name]
+
     # Declarar tantas clases modelo colecciones existan en la base de datos
     # Leer el fichero de definiciones de modelos para obtener las colecciones,
     # indices y los atributos admitidos y requeridos para cada una de ellas.
     # Ejemplo de declaracion de modelo para colecion llamada MiModelo
-    scope["MiModelo"] = type("MiModelo", (Model,),{})
+    # scope["MiModelo"] = type("MiModelo", (Model,),{})
     # La clase se declara en tiempo de ejecucion y queda en scope, que no tiene
     # por que ser el espacio de nombres global: las pruebas le pasan su propio
     # diccionario. Por eso se inicializa a traves de scope y no por su nombre,
     # que ahi todavia no existe.
-    scope["MiModelo"].init_class(db_collection=None, indexes=None, required_vars=None, admissible_vars=None)
+    # scope["MiModelo"].init_class(db_collection=None, indexes=None, required_vars=None, admissible_vars=None)
+
+    # leer ficheros yaml
+    with open(definitions_path, "r", encoding = "utf-8") as file:
+        definitions = yaml.safe_load(file)
+
+    # recorrer modelos definidos en yaml
+    for model_name, model_definition in definitions.items():
+
+        # obtener atributos requeridos y admitidos
+        required_vars = set(model_definition.get("required_vars", []) or [])
+        admissible_vars = set(model_definition.get("admissible_vars", []) or [])
+
+        # preparar indices
+        indexes = {}
+
+        # indices unicos
+        for field in model_definition.get("unique_indexes", []) or []:
+            indexes[field] = "unique"
+
+        # indices ascendentes
+        for field in model_definition.get("regular_indexes", []) or []:
+            indexes[field] = "asc"
+
+        # indice geoespacial
+        location_index = model_definition.get("location_index")      
+
+        if location_index is not None:
+            indexes[location_index] = "geosphere"
+            admissible_vars.add(location_index + "_loc")
+
+        scope[model_name] = type(model_name, (Model,),{})
+
+        scope[model_name].init_class(
+            db_collection = db[model_name], indexes = indexes, required_vars = required_vars, admissible_vars = admissible_vars
+        )
+
 
 if __name__ == '__main__':
     
